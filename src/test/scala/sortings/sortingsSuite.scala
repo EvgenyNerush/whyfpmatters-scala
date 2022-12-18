@@ -23,4 +23,8 @@ class sortingsSuite extends Properties("sortings") {
   property("qsort") = forAll { (i: Int, j: Int) =>
     qsort(List(i,j)) == ( if (i < j) List(i,j) else List(j,i) )
   }
+
+  property("msort") = forAll { (i: Int, j: Int) =>
+    msort(List(i,j)) == ( if (i < j) List(i,j) else List(j,i) )
+  }
 }
