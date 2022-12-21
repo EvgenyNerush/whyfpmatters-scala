@@ -1,3 +1,6 @@
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 // Explanation of monads, as simple as possible //
 
 // Let's start with an example: type Option[Int] (Int here marks the type that is stored in Option)
@@ -64,26 +67,77 @@ if (b.isEmpty) {
   }
 }
 
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 // Thus, `flatMap` makes work with _context_ easy. The context in the example is that there can
-// be no value. A lot of types also provide context. For instance, for `List` the context is
-// that there are multiple values. Thus, `flatMap` for lists is written such that it
-// works as follows:
+// be no value. This is the first "face" of monads: the context remains the same,
+// but the type of values in the context can change. Look:
+Some("42")                                                                 // Some[String]
+  .flatMap { s: String => s.toIntOption /* Some(value) if successful */ }  // Some[Int]
+  .flatMap { i: Int => if (i!=0) Some(1 / i.toDouble) else None }          // Some[Double]
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+
+// A lot of types also provide context. For instance, for `List` the context is
+// that there are multiple values. Similarly to eliminating nested Some(Some(...))
+// with `flatMap` one can flatten lists:
 val xs = List(1,2,3)
 def twice(x: Int) = List(x, x)
-xs.map(twice) // [[1,1], [2,2], [3,3]]
+xs.map(twice)     // [[1,1], [2,2], [3,3]]
 xs.flatMap(twice) // [1,1,2,2,3,3]
-xs.flatMap(twice).flatMap(twice) // [1,1,1,1,2,2,2,2,..]
 
-// It is not the all `flatMap` magic. The next trick is that it can pick elements from one
-// context and the function to the other context. The context of the function is just eliminated,
-// or flattened. Namely, for monad M[A] and function f: A => N[B] the function `flatMap(f)` returns
-// M[B], and N is "flattened". Roughly speaking,
-// M[A].flatMap{A => N[B]} is of type M[B].
-val ys = List(1,2)
+val ys = List(List(1,2), List(3,4)) // [[1,2], [3,4]]
+ys.flatten            // [1,2,3,4]
+ys.flatMap { x => x } // [1,2,3,4] (!)
+
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+// Therefore, `flatMap` works as `map` followed by `flatten`.
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+
+// It is not all `flatMap` magic. The next trick is that `flatMap` can pick elements from one
+// context and the function to the other context. The context of the function can be somehow
+// eliminated, or flattened:
+val ys = List(44, 45, 46)
+ys.map(response) // [Some(45), None, Some(47)]
+ys.flatMap(response) // [45, 47]
+//
+val zs = List(1,2)
 def somePi(x: Int): Option[Double] = Some(3.14 * x.toDouble)
-ys.flatMap(somePi) // [3.14, 6.28]
+zs.flatMap(somePi) // [3.14, 6.28]
 
-// Thus, flatMap(f) drops the context of f result
+// But, wait, how can it work for a function that returns List? How to "eliminate"
+// context of multiple values? How to flatten Option[List]?
+// Some(35).flatMap { x: Int => List(x, x+1) } yields the error:
+// type mismatch;
+// found   : List[Int]
+// required: Option[?]
+
+// Ok, it doesn't work for Option[List], so how did it worked for List(Option) then?
+// The answer is that List and Option are both subtypes of IterableOnce, thus the contexts
+// of both are inherited from the same trait. Now it's time to show the formal definition of a monad.
+
+/*A monad is a parametric type M[T] with two operations: flatMap and unit.
+
+trait M[T] {
+  def flatMap[U](f: T => M[U]) : M[U]
+  def unit[T](x: T) : M[T]
+}
+
+These operations must satisfy three important properties:
+
+    Associativity: (x flatMap f) flatMap g == x flatMap (y => f(y) flatMap g)
+
+    Left unit: unit(x) flatMap f == f(x)
+
+    Right unit: m flatMap unit == m
+
+Many standard Scala Objects like List, Set, Option, Gen are monads with identical implementation of flatMap and specialized implementation of unit
+
+List(1,2).flatMap { x => Future {x} }*/
+
+List("Ab", "Cd").flatMap(_.toLowerCase) // List('a','b','c','d')
+List("1", "hi!", "2").flatMap(_.toIntOption).sum // 3
+List(1,2).flatMap { x => List(x, -x) } // List(1, -1, 2, -2)
+List(1 to 10).flatMap { x => if (x%2 == 1) List(x) else List() } // List(1,3,5,7,9)
+
 val zs = List(44, 45, 46)
 zs.map(response) // [Some(45), None, Some(47)]
 zs.flatMap(response) // [45, 47]
@@ -96,7 +150,9 @@ List(List(1,2), List(3,4)).flatMap { x: List[Int] => x } // [1,2,3,4]
 // can be extracted.
 
 
-
+//Namely, for monad M[A] and function f: A => N[B] the function `flatMap(f)` returns
+// M[B], and N is "flattened". Roughly speaking,
+// M[A].flatMap{A => N[B]} is of type M[B].
 /* Formally, the polymorphic type `M` is a monad if it provides two functions:
    `unit` that maps type `X` to type `M[X]`, and
    `flatMap` that maps functions of type `X => M[Y]` to functions `M[X] => M[Y]`.
