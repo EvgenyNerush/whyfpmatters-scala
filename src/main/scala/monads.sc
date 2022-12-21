@@ -1,6 +1,3 @@
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-
 // Explanation of monads, as simple as possible //
 
 // Let's start with an example: type Option[Int] (Int here marks the type that is stored in Option)
@@ -111,83 +108,53 @@ zs.flatMap(somePi) // [3.14, 6.28]
 // required: Option[?]
 
 // Ok, it doesn't work for Option[List], so how did it worked for List(Option) then?
-// The answer is that List and Option are both subtypes of IterableOnce, thus the contexts
-// of both are inherited from the same trait. Now it's time to show the formal definition of a monad.
+// The answer is that `flatMap` for List expects a function that returns a subtype of
+// IterableOnce, not anything else. List, surely, is also a subtype of IterableOnce.
+// Now it's time to recall the formal definition
+// of a monad: monad is a parametric type M[T] with `flatMap` operating "inside" this
+// single type M, not between two different monadic types M and, say, N.
 
-/*A monad is a parametric type M[T] with two operations: flatMap and unit.
+/* A monad is a parametric type M[T] with two operations: flatMap and unit.
 
 trait M[T] {
   def flatMap[U](f: T => M[U]) : M[U]
   def unit[T](x: T) : M[T]
 }
 
-These operations must satisfy three important properties:
+These operations must satisfy three properties:
 
     Associativity: (x flatMap f) flatMap g == x flatMap (y => f(y) flatMap g)
 
     Left unit: unit(x) flatMap f == f(x)
 
     Right unit: m flatMap unit == m
+*/
 
-Many standard Scala Objects like List, Set, Option, Gen are monads with identical implementation of flatMap and specialized implementation of unit
-
-List(1,2).flatMap { x => Future {x} }*/
-
-List("Ab", "Cd").flatMap(_.toLowerCase) // List('a','b','c','d')
-List("1", "hi!", "2").flatMap(_.toIntOption).sum // 3
+// Now, do you understand the examples below?
 List(1,2).flatMap { x => List(x, -x) } // List(1, -1, 2, -2)
-List(1 to 10).flatMap { x => if (x%2 == 1) List(x) else List() } // List(1,3,5,7,9)
+List("1", "hi!", "2").flatMap(_.toIntOption) // List(1,2)
+List("Ab", "Cd").flatMap(_.toLowerCase) // List('a','b','c','d')
 
-val zs = List(44, 45, 46)
-zs.map(response) // [Some(45), None, Some(47)]
-zs.flatMap(response) // [45, 47]
+// And what about this code?
+(1 to 10).toList.flatMap { x => if (x%2 == 1) List(x) else List() }
+// List(1,3,5,7,9)
 
-// It's easy to make the `flatten` function combining `flatMap` and identical
-// function (_), which returns its argument.
-List(List(1,2), List(3,4)).flatMap { x: List[Int] => x } // [1,2,3,4]
-
-// But how it can work? The context is not just a wrapper of a value which
-// can be extracted.
-
-
-//Namely, for monad M[A] and function f: A => N[B] the function `flatMap(f)` returns
-// M[B], and N is "flattened". Roughly speaking,
-// M[A].flatMap{A => N[B]} is of type M[B].
-/* Formally, the polymorphic type `M` is a monad if it provides two functions:
-   `unit` that maps type `X` to type `M[X]`, and
-   `flatMap` that maps functions of type `X => M[Y]` to functions `M[X] => M[Y]`.
-   These mappings should also satisfy so-called `monad laws` that are quite natural,
-   and will be considered below (but not in detail). Instead, let's look at `flatMap`,
-   the essence of monads.
- */
-
-// The value of type `Option` can be `Some(v)` (contains value `v`) or `None`.
-//val a: Option[Int] = Some(42)
-
-// Let's consider functions of type `Int => Option[Int]`
-// as some server response (which can be successful or not) to some request (Int):
-/*def response(request: Int): Option[Int] = {
-  if (request % 5 == 0) None // failure
-  else Some(request + 1)     // success
+// How about this one? "%c%c".format(a,b) is the same as a.toStr + b.toStr
+val chars = ('a' to 'z').toList
+chars.toList.flatMap { a =>
+  chars.flatMap { b =>
+    if (a!=b) List("%c%c".format(a,b)) else List()
+  }
 }
+// This yields all pairs of different letters: ab, ac, ad, ... , zx, zy
 
-response(42) // Some(43)
-response(45) // None
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+// We come to the third face of monads: they allow us
+// manipulate collections, complementing map, foldLeft etc.
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
-// `flatMap` allows us to make a request based on a value of the previous response:
-Some(42).flatMap(response) // Some(43)
-
-// hence with `flatMap` we can do chain requests easily:
-Some(42)
-  .flatMap(response) // Some(43)
-  .flatMap(response) // Some(44)
-  .flatMap(response) // Some(45)
-  .flatMap(response) // None
-  .flatMap(response) // None */
-
-// Without monadic interface one can do chain requests with
-// a lot of `if`
-
-
-//val xs = List(Some(1),Some(2),None)
-//xs.flatMap { x => x }
+// Map is a collection of key-value pairs
+val m = Map("a" -> None, "b" -> Some(55), "c" -> Some(8))
+// _2 is the second element of a tuple, ('a','b')._2 is 'b'
+m.map { x => x._2 } // List(None, Some(55), Some(8))
+m.flatMap { x => x._2 } // List(55,8)
