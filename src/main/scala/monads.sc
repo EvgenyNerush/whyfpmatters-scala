@@ -158,3 +158,53 @@ val m = Map("a" -> None, "b" -> Some(55), "c" -> Some(8))
 // _2 is the second element of a tuple, ('a','b')._2 is 'b'
 m.map { x => x._2 } // List(None, Some(55), Some(8))
 m.flatMap { x => x._2 } // List(55,8)
+
+(1 to 2).toList.flatMap { x =>
+  (1 to 3).toList.flatMap { y => List(x * y) }
+}
+// List(1,2,3,2,4,6)
+
+List(List(1,2), List(2,2), List(2,3))
+  .flatMap { x =>
+    x.flatMap { y =>
+      if (y%2 == 1) List(y) else List()
+    }
+  }
+// List(1,3)
+
+List(List(1,2), List(2,2), List(2,3))
+  .flatMap { _.filter(_%2 == 1)}
+
+Set('a', 'b', 'c').flatMap { a => if (a != 'b') Set('d') else Set('b') }
+
+Map('a' -> 1, 'b' -> 2, 'c' -> 2).flatMap { x => List(x._2) }
+
+Map('a' -> 1, 'b' -> 2, 'c' -> 2).map { x => x._2 }
+
+Map('a' -> 1, 'b' -> 2).flatMap { x => Map(x._1 -> 3) }
+
+Map('a' -> 1, 'b' -> 2, 'c' -> 2).flatMap { x => Map(x._2 -> x._1) }
+
+// from a set of keys and a set of values produce a Map
+// where a key is devided by the corresponding value with no remainder
+val ks = Set(17, 21, 7, 35)
+val vs = Set(11, 5, 7, 3)
+
+//
+val pairs = ks.flatMap { k =>
+  val dividers = vs.flatMap { v =>
+    if (k%v == 0) Set(v) else Set()
+  }
+  dividers.flatMap { s => Some((k, s)) }
+}
+
+pairs.toMap
+
+ks.foldLeft(Map[Int,Set[Int]]()) { (m,k) =>  val dividers = vs.flatMap { v =>
+  if (k%v == 0) Set(v) else Set()
+}
+  m ++ Map(k -> dividers)
+}
+// Map(17->List(),...), not what we wanted
+
+
