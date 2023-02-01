@@ -1,5 +1,8 @@
 // Explanation of monads, as simple as possible //
 
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 // Let's start with an example: type Option[Int] (Int here marks the type that is stored in Option)
 // and function `flatMap` for the Option type. `flatMap` is a part of the monadic interface.
 
@@ -173,9 +176,12 @@ List(List(1,2), List(2,2), List(2,3))
 // List(1,3)
 
 List(List(1,2), List(2,2), List(2,3))
-  .flatMap { _.filter(_%2 == 1)}
+  .flatMap { _.filter(_%2 == 1) }
 
 Set('a', 'b', 'c').flatMap { a => if (a != 'b') Set('d') else Set('b') }
+// Python:
+//   {a if a != 'b' else 'd' for a in s}
+//   # => {'a', 'c', 'd'}
 
 Map('a' -> 1, 'b' -> 2, 'c' -> 2).flatMap { x => List(x._2) }
 
@@ -184,9 +190,12 @@ Map('a' -> 1, 'b' -> 2, 'c' -> 2).map { x => x._2 }
 Map('a' -> 1, 'b' -> 2).flatMap { x => Map(x._1 -> 3) }
 
 Map('a' -> 1, 'b' -> 2, 'c' -> 2).flatMap { x => Map(x._2 -> x._1) }
+// Python:
+//   {y: x for x, y in d.items()}
+//   # => {1: 'a', 2: 'c'} 
 
 // from a set of keys and a set of values produce a Map
-// where a key is devided by the corresponding value with no remainder
+// where a key is divided by the corresponding value with no remainder
 val ks = Set(17, 21, 7, 35)
 val vs = Set(11, 5, 7, 3)
 
@@ -208,3 +217,22 @@ ks.foldLeft(Map[Int,Set[Int]]()) { (m,k) =>  val dividers = vs.flatMap { v =>
 // Map(17->List(),...), not what we wanted
 
 
+val future = Future( { Thread.sleep(1000); 42 } )
+// Future(<not completed>)
+
+Thread.sleep(1100)
+println(future) // Future(Success(42))
+
+def longTask(x: Int): Int = {
+  Thread.sleep(1000)
+  x + 1
+}
+
+// mimic request-response again
+def f(x: Int) = Future(longTask(x))
+
+val v = future.flatMap(f).flatMap(f)
+// Future(Success(44)) some time later
+
+Thread.sleep(2100)
+println(v)
